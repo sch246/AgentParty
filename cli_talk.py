@@ -7,50 +7,47 @@
 from openai import OpenAI
 
 from config import resolve_config
-from core import COLOR_DICT, RESET, request_llm, stream_events
-
-# cli 专用：记住“上一次是不是思考”，用于思考/正文切换时插空行。
-cli_thinking = False
-
-
-def color_print(text, color, end="\n"):
-    global cli_thinking
-    if color == "yellow" and not cli_thinking:
-        cli_thinking = True
-        print()
-    elif color != "yellow" and cli_thinking:
-        cli_thinking = False
-        print()
-
-    color_code = COLOR_DICT.get(color.lower(), "")
-    print(f"{color_code}{text}{RESET}", end=end)
+from core import request_llm, stream_events, terminal_color_print
 
 
 def consume_to_terminal(events):
-    """cli 消费者：把所有事件都上色打到控制台，返回完整正文。"""
+    """cli 消费者：把所有事件都上色打到控制台，返回完整正文。
+
+    思考/正文切换时插空行的状态用函数内局部变量（和 file 版一致），
+    不再依赖模块级全局变量。
+    """
     response_text = ""
+    thinking = False  # 思考/正文切换时插空行用
     for kind, payload in events:
         match (kind, payload):
             case ("role", model_name):
-                color_print(f"{model_name}: ", "cyan", end="")
+                terminal_color_print(f"{model_name}: ", "cyan", end="")
             case ("thinking", text):
-                color_print(text, "yellow", end="")
+                if not thinking:
+                    thinking = True
+                    print()
+                terminal_color_print(text, "yellow", end="")
             case ("content", text):
-                color_print(text, "green", end="")
+                if thinking:
+                    thinking = False
+                    print()
+                terminal_color_print(text, "green", end="")
                 response_text += text
             case ("usage", u):
+                if thinking:
+                    thinking = False
                 print()
-                color_print(
+                terminal_color_print(
                     f"输入: {u['prompt']}, 输出: {u['completion']}, 总: {u['total']}",
                     "gray",
                 )
-                color_print(
+                terminal_color_print(
                     f"思考: {u['reasoning']}, 缓存命中: {u['cache_hit']}, 缓存未命中: {u['cache_miss']}",
                     "gray",
                 )
             case ("error", el):
                 print()
-                color_print(el, "red")
+                terminal_color_print(el, "red")
     return response_text
 
 
@@ -66,7 +63,7 @@ def cli_talk():
     # 2. 死循环：一轮一轮地聊，不中断。
     while True:
         # 提醒轮到你说话了
-        color_print("user: ", color="cyan", end="")
+        terminal_color_print("user: ", "cyan", end="")
         request_text = input()
 
         # 把你说的话扔进历史抽屉最后面
