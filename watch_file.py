@@ -28,17 +28,15 @@ class NonBlockingWatcher(FileSystemEventHandler):
                 # 无论任务成功与否，必须释放锁，以便下次触发可以继续执行
                 self._locks[path].release()
 
-watcher = NonBlockingWatcher()
+    def loop(self):
+        observer = Observer()
+        observer.schedule(self, path='.', recursive=False)
+        observer.start()
 
-def loop():
-    observer = Observer()
-    observer.schedule(watcher, path='.', recursive=False)
-    observer.start()
-
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        observer.stop()
-    observer.join()
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            observer.stop()
+        observer.join()
 

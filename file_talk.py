@@ -90,8 +90,9 @@ def build_messages(meta, body):
     for d in raw:
         role = d["role"]
         content = d["content"].strip()
-        if not content:
-            continue
+        # 也许应该允许空输入
+        # if not content:
+        #     continue
         api_role = role if role in ("system", "user") else "assistant"
         messages.append({"role": api_role, "content": content})
     return messages
@@ -181,12 +182,14 @@ def handler(path):
 def file_talk():
     import glob
 
-    from watch_file import loop, watcher
+    from watch_file import NonBlockingWatcher
+
+    watcher = NonBlockingWatcher()
 
     # 监听当前目录下所有 .md；是否是“带标记”文件由 handler 里的 frontmatter 检查决定。
     for md in glob.glob("*.md"):
         watcher.register(md, handler)
-    loop()
+    watcher.loop()
 
 
 if __name__ == "__main__":
