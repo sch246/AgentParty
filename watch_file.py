@@ -49,10 +49,11 @@ class NonBlockingWatcher(FileSystemEventHandler):
         finally:
             self._locks[path].release()
 
-    def loop(self):
+    def loop(self, watch_path):
         observer = Observer()
-        observer.schedule(self, path='.', recursive=True)
+        observer.schedule(self, path=watch_path, recursive=True)
         observer.start()
+        print(f"正在监听 {watch_path} ...")
 
         try:
             while True:

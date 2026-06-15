@@ -5,7 +5,7 @@
 # 不是“必需项”，不参与补缺，所以这里只关心 required 三项）。
 #
 # 优先级（从低到高，dict 合并时高优先级在右覆盖低优先级）：
-#   .config.json（垫底） < 各 sources（如 frontmatter） < 手输补缺
+#   DEFAULTS(默认值) < .config.json < 各 sources（如 frontmatter） < 手输补缺
 #
 # 设计原则：
 #   - 每个“环境”单独写读取函数，各自 fallback，满足即停。
@@ -18,6 +18,11 @@ import os
 
 CONFIG_PATH = ".config.json"
 REQUIRED = ["api_key", "base_url", "model"]
+# 所有的可选配置项默认值统一在这里管理
+DEFAULTS = {
+    "log": False,
+    "watch_path": "."
+}
 
 
 def load_config(path=CONFIG_PATH):
@@ -64,14 +69,14 @@ def resolve_config(*sources, required=REQUIRED, path=CONFIG_PATH):
              CLI 版不传 sources。
     返回：满足 required 的完整配置 dict。
 
-    合并顺序（低→高）：.config.json 垫底 → *sources → 手输补缺。
+    合并顺序（低→高）：DEFAULTS -> .config.json -> *sources -> 手输补缺。
     """
-    # 1. .config.json 垫底，sources 依次叠上去（后者覆盖前者）
-    merged = load_config(path)
+    # 1. DEFAULTS 垫底，.config.json 和 sources 依次叠上去（后者覆盖前者）
+    merged = {**DEFAULTS, **load_config(path)}
     for src in sources:
         merged = {**merged, **(src or {})}
 
-    # 2. 逐项补缺：只对仍然缺的项手输
+    # 2. 逐项补缺：只对仍然缺的 required 项手输
     typed = prompt_missing(merged, required)
 
     # 3. 只把手输补的那几项存回 .config.json（不污染已有项 / 不存 frontmatter 覆盖项）

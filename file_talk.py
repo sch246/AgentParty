@@ -12,6 +12,7 @@
 #      —— 因为思考不入文件，body 里只有正文，无需缩进检测。
 # =====================================================================
 import re
+import os
 
 import yaml
 from openai import OpenAI
@@ -98,49 +99,59 @@ def build_messages(meta, body):
     return messages
 
 
-def consume_to_file(events, path, name, model):
+def consume_to_file(events, path, name, model, enable_log=False):
     """file 消费者：
 
     - 角色头 / 正文 → 追加写文件。角色头用显示名 name（不是 API 返回名）。
-    - 思考 / 账单 / 报错 → 打到控制台。控制台抬头显示 name(model) 方便定位。
+    - 思考 / 账单 / 报错 → 进 log 就不打控制台，打控制台就不进 log。显示 name(model) 方便定位。
     颜色只出现在“打控制台”这一步，不再背路由职责。
     """
     thinking = False  # 控制台思考/正文切换时插空行用
+    log_path = os.path.splitext(path)[0] + ".log"
 
-    def append(s):
+    def append_md(s):
         with open(path, "a", encoding="utf-8") as f:
             f.write(s)
+
+    def output_meta(text="", color="white", end="\n"):
+        """统一的互斥输出函数：处理所有非正文内容的去向和格式"""
+        if enable_log:
+            # 进日志：纯文本写入，补齐 end 字符，不需要颜色代码
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(text + end)
+        else:
+            terminal_color_print(text, color, end=end)
 
     for kind, payload in events:
         match (kind, payload):
             case ("role", _api_name):
                 # 控制台抬头：name(model)；文件里只写 name
-                terminal_color_print(f"\n{name}({model}):", "cyan")
-                append(f"{name}: ")
+                output_meta(f"\n{name}({model}):", "cyan")
+                append_md(f"{name}: ")
             case ("thinking", text):
                 if not thinking:
                     thinking = True
-                terminal_color_print(text, "yellow", end="")
+                output_meta(text, "yellow", end="")
             case ("content", text):
                 if thinking:
                     thinking = False
-                    print()
-                append(text)
+                    output_meta()
+                append_md(text)
             case ("usage", u):
                 if thinking:
                     thinking = False
-                print()
-                terminal_color_print(
+                output_meta()
+                output_meta(
                     f"输入: {u['prompt']}, 输出: {u['completion']}, 总: {u['total']}",
                     "gray",
                 )
-                terminal_color_print(
+                output_meta(
                     f"思考: {u['reasoning']}, 缓存命中: {u['cache_hit']}, 缓存未命中: {u['cache_miss']}",
                     "gray",
                 )
             case ("error", el):
-                print()
-                terminal_color_print(el, "red")
+                output_meta()
+                output_meta(el, "red")
 
 
 def handler(path):
@@ -171,7 +182,11 @@ def handler(path):
 
     # 因为文件已以 `\n\n` 结尾，直接追加 `<name>: ` 再接正文，排版合理。
     consume_to_file(
-        stream_events(response), path, display_name(config), config["model"]
+        stream_events(response),
+        path,
+        display_name(config),
+        config["model"],
+        enable_log=config["log"]
     )
 
     # 模型输出完成，末尾加 `\n\nuser: ` 等待下一步输入。
@@ -182,9 +197,11 @@ def handler(path):
 def file_talk():
     from watch_file import NonBlockingWatcher
 
+    config = resolve_config()
+
     watcher = NonBlockingWatcher()
     watcher.set_handler(handler)  # 通用处理器，所有 .md 文件自动接管
-    watcher.loop()
+    watcher.loop(config["watch_path"])
 
 
 if __name__ == "__main__":
