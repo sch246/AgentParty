@@ -1,54 +1,44 @@
 # =====================================================================
 # cli 模式：在终端里和 AI 聊天。
 #
-# 消费 core.stream_events 的语义事件，全部上色打到控制台。
+# 消费 ux_reducer 的语义动作流 → 全部上色打到控制台。
 # 配置走 resolve_config()：.config.json → 手输补缺。
 # =====================================================================
 from openai import OpenAI
 
 from config import resolve_config
 from core import request_llm, stream_events, terminal_color_print
+from pipeline import apply_ux_rules, execute_semantic_actions
 
 
-def consume_to_terminal(events):
-    """cli 消费者：把所有事件都上色打到控制台，返回完整正文。
+def consume_to_terminal(raw_events, user_model):
+    """CLI 版消费者：所有语义动作都上色打到控制台。
 
-    思考/正文切换时插空行的状态用函数内局部变量（和 file 版一致），
-    不再依赖模块级全局变量。
+    返回拼接后的完整正文（供 CLI 维护 messages 历史）。
     """
-    response_text = ""
-    thinking = False  # 思考/正文切换时插空行用
-    for kind, payload in events:
-        match (kind, payload):
-            case ("role", model_name):
-                terminal_color_print(f"{model_name}: ", "cyan", end="")
-            case ("thinking", text):
-                if not thinking:
-                    thinking = True
-                    print()
-                terminal_color_print(text, "yellow", end="")
-            case ("content", text):
-                if thinking:
-                    thinking = False
-                    print()
-                terminal_color_print(text, "green", end="")
-                response_text += text
-            case ("usage", u):
-                if thinking:
-                    thinking = False
-                print()
-                terminal_color_print(
-                    f"输入: {u['prompt']}, 输出: {u['completion']}, 总: {u['total']}",
-                    "gray",
-                )
-                terminal_color_print(
-                    f"思考: {u['reasoning']}, 缓存命中: {u['cache_hit']}, 缓存未命中: {u['cache_miss']}",
-                    "gray",
-                )
-            case ("error", el):
-                print()
-                terminal_color_print(el, "red")
-    return response_text
+    handlers = {
+        "header": lambda _: terminal_color_print(
+            f"{user_model}: ", "cyan", end=""
+        ),
+        "ui_newline": lambda _: print(),
+        "thinking": lambda text: terminal_color_print(text, "yellow", end=""),
+        "content": lambda text: terminal_color_print(text, "green", end=""),
+        "usage": lambda u: (
+            terminal_color_print(
+                f"输入: {u['prompt']}, 输出: {u['completion']}, 总: {u['total']}",
+                "gray",
+            ),
+            terminal_color_print(
+                f"思考: {u['reasoning']}, 缓存命中: {u['cache_hit']},"
+                f" 缓存未命中: {u['cache_miss']}",
+                "gray",
+            ),
+        ),
+        "error": lambda e: terminal_color_print(str(e), "red"),
+    }
+
+    ux_stream = apply_ux_rules(raw_events)
+    return execute_semantic_actions(ux_stream, handlers)
 
 
 def cli_talk():
@@ -71,7 +61,7 @@ def cli_talk():
 
         # 打包整个抽屉发给 AI，流式打印回复并记下完整正文
         response = request_llm(client, model, messages)
-        response_text = consume_to_terminal(stream_events(response))
+        response_text = consume_to_terminal(stream_events(response), model)
 
         # 把 AI 的回复也存进抽屉，这样下一轮它能看到自己说过啥（有记忆）
         messages += [{"role": "assistant", "content": response_text}]
