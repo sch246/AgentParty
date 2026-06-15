@@ -2,7 +2,7 @@
 .config.json
 
 # 对话草稿文件
-talk.md
+talks
 
 # Python 缓存
 __pycache__/

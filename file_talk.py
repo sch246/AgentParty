@@ -180,15 +180,10 @@ def handler(path):
 
 
 def file_talk():
-    import glob
-
     from watch_file import NonBlockingWatcher
 
     watcher = NonBlockingWatcher()
-
-    # 监听当前目录下所有 .md；是否是“带标记”文件由 handler 里的 frontmatter 检查决定。
-    for md in glob.glob("*.md"):
-        watcher.register(md, handler)
+    watcher.set_handler(handler)  # 通用处理器，所有 .md 文件自动接管
     watcher.loop()
 
 
