@@ -2,12 +2,14 @@
 # cli 模式：在终端里和 AI 聊天。
 #
 # 直接消费 stream_events → 全部上色打到控制台。
+# 支持工具执行：检测 do 块 → 执行 → 打印结果到控制台。
 # 配置走 resolve_config()：.config.json → 手输补缺。
 # =====================================================================
 from openai import OpenAI
 
 from config import resolve_config
 from core import request_llm, stream_events, terminal_color_print, meta_output
+from tool_executor import has_do_block, parse_do_blocks, execute_blocks
 
 
 def consume_to_terminal(response, user_model):
@@ -78,19 +80,18 @@ def cli_talk():
     messages = [{"role": "system", "content": "你是一只猫娘"}]
 
     # 2. 加载 tools.md 作为系统提示词（如果存在）
-    # 注意：CLI 模式不支持工具执行，只是提供工具描述供 AI 了解能力
     try:
         from pathlib import Path
         tools_path = Path("tools.md")
         if tools_path.exists():
             tools_content = tools_path.read_text(encoding="utf-8")
-            # 添加说明：CLI 模式不支持 do 块
-            tools_note = "\n\n[注意] 当前是 CLI 模式，不支持 do sh/do python 块的执行。请直接回答用户问题，不要输出工具调用代码。"
-            messages.append({"role": "system", "content": tools_content + tools_note})
+            messages.append({"role": "system", "content": tools_content})
     except Exception:
         pass  # 文件不存在或读取失败，静默忽略
 
     # 3. 死循环：一轮一轮地聊，不中断。
+    max_tool_rounds = config.get("max_tool_rounds", 10)
+
     while True:
         # 提醒轮到你说话了
         terminal_color_print("user: ", "cyan", end="")
@@ -99,12 +100,62 @@ def cli_talk():
         # 把你说的话扔进历史抽屉最后面
         messages += [{"role": "user", "content": request_text}]
 
-        # 打包整个抽屉发给 AI，流式打印回复并记下完整正文
-        response = request_llm(client, model, messages)
-        response_text = consume_to_terminal(response, model)
+        # 工具调用循环
+        tool_rounds = 0
+        while tool_rounds <= max_tool_rounds:
+            # 打包整个抽屉发给 AI，流式打印回复并记下完整正文
+            response = request_llm(client, model, messages)
+            response_text = consume_to_terminal(response, model)
 
-        # 把 AI 的回复也存进抽屉，这样下一轮它能看到自己说过啥（有记忆）
-        messages += [{"role": "assistant", "content": response_text}]
+            # 把 AI 的回复也存进抽屉
+            messages += [{"role": "assistant", "content": response_text}]
+
+            # 检查是否有工具调用
+            if not has_do_block(response_text):
+                break  # 没有工具，结束这轮对话
+
+            # 解析并执行工具
+            blocks = parse_do_blocks(response_text)
+            if not blocks:
+                break
+
+            print()  # 空行分隔
+            terminal_color_print(f"[执行 {len(blocks)} 个工具...]", "cyan")
+
+            # 执行工具并打印结果到控制台
+            tool_outputs = []
+            for block_type, code in blocks:
+                print()
+                terminal_color_print(f"--- do {block_type} ---", "yellow")
+
+                # 执行工具（使用临时 log 避免污染文件）
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.log', delete=False, encoding='utf-8') as tmp:
+                    tmp_log = tmp.name
+
+                results = execute_blocks([(block_type, code)], messages, tmp_log)
+
+                # 读取并打印结果
+                with open(tmp_log, 'r', encoding='utf-8') as f:
+                    output = f.read()
+                terminal_color_print(output, "white")
+
+                # 收集输出供 AI 查看
+                tool_outputs.append(f"[do {block_type} 输出]\n{output}")
+
+                # 清理临时文件
+                import os
+                os.unlink(tmp_log)
+
+            # 将工具输出作为 system 消息发送给 AI
+            combined_output = "\n\n".join(tool_outputs)
+            messages += [{"role": "system", "content": combined_output}]
+
+            tool_rounds += 1
+            if tool_rounds >= max_tool_rounds:
+                print()
+                terminal_color_print(f"[达到工具调用上限 {max_tool_rounds} 次]", "yellow")
+                break
 
 
 if __name__ == "__main__":
