@@ -15,7 +15,7 @@ from pathlib import Path
 
 import yaml
 
-from format_schema import ROLE_MARKER, FILE_REF_PREFIX, FRONTMATTER_SEP, INDENT
+from src.format_schema import ROLE_MARKER, FILE_REF_PREFIX, FRONTMATTER_SEP, INDENT
 
 
 def parse_file(text: str):

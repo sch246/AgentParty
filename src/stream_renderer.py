@@ -11,8 +11,8 @@
 # - 封装流式处理细节（换行符处理、缓冲逻辑）
 # - 便于切换输出目标（文件/stdout/网络流）
 # =====================================================================
-from format_schema import ROLE_MARKER, INDENT
-from core import stream_events, terminal_color_print
+from src.format_schema import ROLE_MARKER, INDENT
+from src.core import stream_events, terminal_color_print
 
 
 def write_response(response, md_path, name, log_path, enable_log):

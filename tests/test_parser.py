@@ -14,7 +14,7 @@ import sys
 # 添加项目根目录到 sys.path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from markdown_parser import parse_file
+from src.markdown_parser import parse_file
 
 
 class TestParseFile(unittest.TestCase):
