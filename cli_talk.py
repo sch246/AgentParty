@@ -48,6 +48,8 @@ def consume_to_terminal(response, user_model):
         elif kind == "usage":
             if state == "thinking":
                 print()  # ui_newline
+                state = "idle"
+            print()  # 额外空行，分隔 content 和 usage
             meta_output(
                 f"输入: {payload['prompt']}, 输出: {payload['completion']}, "
                 f"总: {payload['total']}",
@@ -75,7 +77,17 @@ def cli_talk():
     # 1. messages 是聊天历史大抽屉，开头先塞一句 system 人设。
     messages = [{"role": "system", "content": "你是一只猫娘"}]
 
-    # 2. 死循环：一轮一轮地聊，不中断。
+    # 2. 加载 tools.md 作为系统提示词（如果存在）
+    try:
+        from pathlib import Path
+        tools_path = Path("tools.md")
+        if tools_path.exists():
+            tools_content = tools_path.read_text(encoding="utf-8")
+            messages.append({"role": "system", "content": tools_content})
+    except Exception:
+        pass  # 文件不存在或读取失败，静默忽略
+
+    # 3. 死循环：一轮一轮地聊，不中断。
     while True:
         # 提醒轮到你说话了
         terminal_color_print("user: ", "cyan", end="")
