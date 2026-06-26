@@ -114,5 +114,6 @@ def terminal_color_print(text, color, end="\n"):
     """把 text 用指定颜色打到控制台。找不到颜色就不上色。"""
     if text is None or text == "":
         print(end=end)
+        return
     color_code = COLOR_DICT.get(color.lower(), "")
     print(f"{color_code}{text}{RESET}", end=end)
