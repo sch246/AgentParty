@@ -78,12 +78,15 @@ def cli_talk():
     messages = [{"role": "system", "content": "你是一只猫娘"}]
 
     # 2. 加载 tools.md 作为系统提示词（如果存在）
+    # 注意：CLI 模式不支持工具执行，只是提供工具描述供 AI 了解能力
     try:
         from pathlib import Path
         tools_path = Path("tools.md")
         if tools_path.exists():
             tools_content = tools_path.read_text(encoding="utf-8")
-            messages.append({"role": "system", "content": tools_content})
+            # 添加说明：CLI 模式不支持 do 块
+            tools_note = "\n\n[注意] 当前是 CLI 模式，不支持 do sh/do python 块的执行。请直接回答用户问题，不要输出工具调用代码。"
+            messages.append({"role": "system", "content": tools_content + tools_note})
     except Exception:
         pass  # 文件不存在或读取失败，静默忽略
 
