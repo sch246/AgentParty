@@ -117,3 +117,24 @@ def terminal_color_print(text, color, end="\n"):
         return
     color_code = COLOR_DICT.get(color.lower(), "")
     print(f"{color_code}{text}{RESET}", end=end)
+
+
+def meta_output(text: str, color: str, end="\n", log_path=None):
+    """元信息输出工具：thinking/usage/role 的统一输出
+
+    为什么独立：
+    - CLI 和 File 的 meta 信息（thinking/usage/role）处理完全相同
+    - 唯一差异是输出目标（控制台 vs log 文件）
+    - 提取此函数避免两处重复相同逻辑
+
+    参数：
+    - text: 输出内容
+    - color: 颜色名（用于控制台）
+    - end: 结尾字符（默认换行）
+    - log_path: None = 控制台，str = 写日志文件
+    """
+    if log_path:
+        with open(log_path, "a", encoding="utf-8") as lf:
+            lf.write(text + end)
+    else:
+        terminal_color_print(text, color, end=end)
