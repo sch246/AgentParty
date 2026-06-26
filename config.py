@@ -20,8 +20,12 @@ CONFIG_PATH = ".config.json"
 REQUIRED = ["api_key", "base_url", "model"]
 # 所有的可选配置项默认值统一在这里管理
 DEFAULTS = {
-    "log": False,
-    "watch_path": "."
+    "log": False,          # thinking 输出到 log 文件而非控制台
+    "watch_path": ".",     # 监听目录
+    "max_tool_rounds": 10, # 工具调用最多次数，防止无限循环
+    "debug": False,        # 打印系统运行日志，便于追踪问题
+    "max_retries": 3,      # 可恢复错误（网络/IO）最大重试次数
+    "retry_delay": 2.0     # 重试间隔秒数（指数退避基础值）
 }
 
 

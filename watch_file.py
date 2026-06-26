@@ -1,3 +1,13 @@
+# =====================================================================
+# 非阻塞文件监听器
+#
+# 设计理念：
+# 1. 每文件一把锁：防止短时间多次触发的竞态（watchdog 会在 0.1s 内触发 3 次）
+# 2. 线程池（最多 8 个）：不同文件可并发处理，不被 watchdog 单线程卡住
+# 3. blocking=False：获取锁失败立即返回（不等待），避免排队
+#
+# 用法：watcher.set_handler(callback) → watcher.loop(watch_path)
+# =====================================================================
 import os, time
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -8,7 +18,7 @@ class NonBlockingWatcher(FileSystemEventHandler):
     def __init__(self):
         self._locks = {}
         self._handler = None
-        # 线程池：让不同文件的 handler 可以同时跑，不被 watchdog 单线程卡住，限制最多同时8个线程
+        # 线程池：让不同文件的 handler 可以同时跑，不被 watchdog 单线程卡住
         self._executor = ThreadPoolExecutor(max_workers=8)
         # 保护 _locks 字典的并发写入
         self._dict_lock = threading.Lock()
